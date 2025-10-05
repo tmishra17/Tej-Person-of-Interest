@@ -1,0 +1,23 @@
+{
+  "cursor.cpp.disabledLanguages": ["*"],
+  "cursor.general.enableCursorless": false,
+  "cursor.aiPredict": false,
+  "cursor.cmdk.useTheiaSearch": false,
+  "editor.inlineSuggest.enabled": false,
+  "editor.suggest.enabled": false,
+  "editor.acceptSuggestionOnEnter": "off",
+  "github.copilot.enable": {
+    "*": false
+  },
+  "editor.quickSuggestions": {
+    "other": false,
+    "comments": false,
+    "strings": false
+  },
+  "editor.suggestOnTriggerCharacters": false,
+  "editor.wordBasedSuggestions": "off",
+  "editor.parameterHints.enabled": false,
+  "editor.snippetSuggestions": "none",
+  "editor.tabCompletion": "off"
+}
+
