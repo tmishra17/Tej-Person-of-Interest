@@ -140,14 +140,22 @@ def main():
                                                    )
             if not results:
                 st.warning("Please lower similarity or type a different query")
+            else:
+                st.success(f"Found **{len(results)}** matching images")
             
-            for image_path, score in results:
-                try:
-                    st.image(Image.open(image_path),
-                            caption=f"**Score:** {score:.3f}"
-                        )
-                except Exception as e:
-                    st.error(f"Error opening image: {e}")
+            cols_per_row = 3
+            for i in range(0, len(results), cols_per_row):
+                cols = st.columns(cols_per_row)
+                # if we are near the end of the search results list, then 
+                for j in range(min(len(results)-i, cols_per_row)):
+                    image_path, score = results[i + j]
+                    with cols[j]:
+                        try:
+                            st.image(Image.open(image_path),
+                                    caption=f"**Score:** {score:.3f}"
+                                )
+                        except Exception as e:
+                            st.error(f"Error opening image: {e}")
         print(f"Search Results: {results}")
     # for sr in search_results:
     #     st.image()
