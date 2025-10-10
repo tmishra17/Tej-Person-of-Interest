@@ -5,15 +5,22 @@ import os
 import pickle
 from PIL import Image
 import glob
+import mediapipe as mp
 
 IMG_DB_PATH = "/home/tmishra/my_space/person-of-interest_no_ai/img_align_celeba/img_align_celeba"
 MODEL_NAME = "clip-ViT-B-32"
 EMBEDDING_PATH = f"{IMG_DB_PATH}/celeba-dataset.pkl"
 BATCH_SIZE = 1000
 
+mp_face = mp.solutions.face_mesh
+
+mp_face_solutions = mp_face.FaceMesh()
+
 model = SentenceTransformer(MODEL_NAME, device='cuda')
 
-
+def preprocess_images():
+    
+    pass
 
 
 @st.cache_data
@@ -51,7 +58,6 @@ def load_embeddings() -> tuple[torch.Tensor, list[str]]:
                                         convert_to_numpy = False,
                                         show_progress_bar = True,
                                     )
-            print
             all_embeddings.append(embedding)
         
         # concatenate all the embeddings into one big single tensor
