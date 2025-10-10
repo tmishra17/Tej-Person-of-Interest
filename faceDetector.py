@@ -13,9 +13,7 @@ BATCH_SIZE = 1000
 
 model = SentenceTransformer(MODEL_NAME, device='cuda')
 
-# add mini LLM to the project that will clean up query (remove malicious data or toxic input)
-# mini batch trains faster and runs faster
-# get all image paths inside of the directory for opening
+
 
 
 @st.cache_data
@@ -143,22 +141,22 @@ def main():
             else:
                 st.success(f"Found **{len(results)}** matching images")
             
-            cols_per_row = 3
+            cols_per_row = 4
             for i in range(0, len(results), cols_per_row):
+                # generates containers with # of columns per row = cols_per_row
                 cols = st.columns(cols_per_row)
-                # if we are near the end of the search results list, then 
+                print(cols)
+                # now ouput the column for each row if depending if len(results) - i is smaller or cols_per_row is smaller
                 for j in range(min(len(results)-i, cols_per_row)):
                     image_path, score = results[i + j]
                     with cols[j]:
                         try:
                             st.image(Image.open(image_path),
-                                    caption=f"**Score:** {score:.3f}"
+                                    caption=f"**Score:** {score:.3f}",
                                 )
                         except Exception as e:
                             st.error(f"Error opening image: {e}")
         print(f"Search Results: {results}")
-    # for sr in search_results:
-    #     st.image()
 
 if __name__ == "__main__":
     main()
