@@ -142,9 +142,12 @@ def main():
                 st.warning("Please lower similarity or type a different query")
             
             for image_path, score in results:
-                st.image(Image.open(image_path),
-                        caption=f"Score: {score:.3f}"
-                    )
+                try:
+                    st.image(Image.open(image_path),
+                            caption=f"**Score:** {score:.3f}"
+                        )
+                except Exception as e:
+                    st.error(f"Error opening image: {e}")
         print(f"Search Results: {results}")
     # for sr in search_results:
     #     st.image()
