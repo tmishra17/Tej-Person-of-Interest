@@ -8,75 +8,101 @@ import glob
 
 IMG_DB_PATH = "/home/tmishra/my_space/person-of-interest_no_ai/img_align_celeba/img_align_celeba"
 MODEL_NAME = "clip-ViT-B-32"
-EMBEDDING_PATH = f"/home/tmishra/my_space/person-of-interest_no_ai/celeba-dataset.pkl"
+EMBEDDING_PATH = f"{IMG_DB_PATH}/celeba-dataset.pkl"
 BATCH_SIZE = 1000
 
 model = SentenceTransformer(MODEL_NAME, device='cuda')
 
+# add mini LLM to the project that will clean up query (remove malicious data or toxic input)
+# mini batch trains faster and runs faster
+# get all image paths inside of the directory for opening
 
 
-def load_embeddings():
+@st.cache_data
+def load_embeddings() -> tuple[torch.Tensor, list[str]]:
     """
     Load embeddings if they are not already computed and 
     compute (first time only) and add them to the celeba folder if they are not.
     
     Returns:
-        -Precomputed or computed embeddings
+        tuple(Precomputed or computed embeddings, image_paths)
     """
     # if embeddings are precomputed then we don't need to create embeddings
-    status=st.empty()
+    status = st.empty()
+    print(f"Existing Path: {os.path.exists(EMBEDDING_PATH)}")
     if os.path.exists(EMBEDDING_PATH):
-        status.info("Loading Embeddings...")
-        status.spin()
+        st.spinner("Loading Embeddings...")
         with open(EMBEDDING_PATH, "rb") as pkl:
-            pkl_file=pickle.load(pkl)
-            
-        print(type(pkl_file))
-        
-        image_embeddings = model.encode([Image.open(image) for image in pkl_file],
+            image_embeddings, image_paths = pickle.load(pkl)
+        status.success("Successfully loaded embeddings!")
+        status.empty()
+        return image_embeddings, image_paths
+    else:
+        status.warning("Computing Embeddings... may take 10-30 minutes")
+        # if len(image_paths) == 0:
+        #     st.error("No Images Found")
+        #     st.stop()
+        image_paths = list(glob.glob(f"{IMG_DB_PATH}/*.jpg"))
+        all_embeddings = []
+        for i in range(0, len(image_paths), BATCH_SIZE):
+            batch = image_paths[i:i+BATCH_SIZE]
+            print(f"Processing batch {i//BATCH_SIZE + 1}/{(len(image_paths) + BATCH_SIZE - 1)//BATCH_SIZE}")
+            # Encode images batch by batch
+            embedding = model.encode([Image.open(path) for path in batch],
                                         convert_to_tensor = True,
                                         convert_to_numpy = False,
-                                        batch_size=BATCH_SIZE
+                                        show_progress_bar = True,
                                     )
+            print
+            all_embeddings.append(embedding)
         
-        status.success("Successfully loaded embeddings")
-        status.remove()
-        return image_embeddings
-    else:
-        status.info("Computing Embeddings... may take 10-30 minutes")
-        image_paths = glob.glob(f"{IMG_DB_PATH}/*.jpg")
-        if len(image_paths) == 0:
-            st.error("No Images Found")
-            st.stop()
-        image_embeddings = []
-        for i in range(10):
-            embedding = model.encode(image_paths[i],
-                                     convert_to_tensor = True,
-                                     conver_to_numpy = False,
-                                     )
-            image_embeddings.append((image_paths, embedding))
+        # concatenate all the embeddings into one big single tensor
+        image_embeddings = torch.cat(all_embeddings)
+        with open(EMBEDDING_PATH, "wb") as file:
+            pickle.dump((image_embeddings, image_paths), file)
         
-        with open(EMBEDDING_PATH, "wb"):
-            pickle.dump(image_embeddings)
-        
-        
-        return image_embeddings
+        status.success("Successfully computed all the embeddings!")
+        status.empty()
+        return image_embeddings, image_paths
 
-def semantic_search(query: str, similarity_threshold: float, max_results:int ):
-    image_embeddings = load_embeddings()
-    search_results = util.semantic_search(query, image_embeddings)
-    i = 0
-    res_count = 0
-    filtered_results = []
-    while i < len(search_results) and res_count < max_results:
-        if search_results[i] >= similarity_threshold:
-            filtered_results.append((search_results[i], search_results[i].score))
+def semantic_search(query: str, similarity_threshold: float, max_results: int, image_paths: list[str], image_embeddings: list[torch.Tensor]) -> tuple[list[tuple[str, float]], list[str]]:
+    """
+    Query database for similar images matching query statement via semantic search
     
-    return filtered_results
+    Arguments:
+        query (str): text description user entered
+        similarity_threshold (float): threshold of similarity user entered
+        max_results (int): max number of displayed results user wants to see
+        image_paths (list[str]) list of all image paths in folder space
+        
+    
+    Returns:
+        List of tuple(image path for each search result, similarity score)
+    """
+    
+    query_embedding = model.encode(query, convert_to_tensor=True, convert_to_numpy=False)
+   
+    if image_embeddings.numel() == 0:
+        st.error("Database Empty")
+        st.stop()
+        return [], image_paths
+    
+    search_results = util.semantic_search(query_embedding, image_embeddings, top_k=max_results)[0]
+  
+    filtered_results = []
+    for res in search_results:
+        score, id = res["score"], res["corpus_id"]
+        print(type(res["corpus_id"]))
+        if score >= similarity_threshold:
+            filtered_results.append((image_paths[id], score))
+            if len(filtered_results) >= max_results:
+                break
+
+    return filtered_results, image_paths
 
 
 def main():
-    print(torch.cuda.is_available())
+    print(f"CUDA: {torch.cuda.is_available()}")
 
     st.title("Person of Interest")
 
@@ -84,7 +110,7 @@ def main():
 
     query = st.text_input("Search For images", placeholder="e.g. Man with a suit, Person wearing glasses")
 
-    
+    image_embeddings, image_paths = load_embeddings()
 
     st.sidebar.header("⚙️ Search Settings")
     
@@ -104,12 +130,25 @@ def main():
                             step=1,
                             help="Select Number of results"
                         )
-    st.button("Search 🔍")
-
-    search_results = semantic_search(query, similarity_threshold, max_results)
+    if st.button("Search 🔍"):
+        with st.spinner("Searching..."):
+            results, image_paths = semantic_search(query, 
+                                                   similarity_threshold, 
+                                                   max_results, 
+                                                   image_paths, 
+                                                   image_embeddings
+                                                   )
+            if not results:
+                st.warning("Please lower similarity or type a different query")
+            
+            for image_path, score in results:
+                st.image(Image.open(image_path),
+                        caption=f"Score: {score:.3f}"
+                    )
+        print(f"Search Results: {results}")
     # for sr in search_results:
     #     st.image()
-    
+
 if __name__ == "__main__":
     main()
     
